@@ -1,147 +1,166 @@
 #include <iostream>
 #include <queue>
-#include <math.h> 
-#include<string>
-#include<cstring>
+#include <math.h>
+#include <string>
+#include <cstring>
+#include <vector>
+#include <tuple>
 #include "DICE.h"
+#include "Event.h"
 #include "Vehicle.h"
-using namespace std;
-
 
 int main()
 {
 	// Global Statistic Variables
-	
-
-	// Invoke Initialization Routine
-	int t = 0; // set internal clock for simulation [t is in minutes, so at t = 60 we have reached one hour]
 
 	// Initialize System State and staistical counters
+	int t = 0; // set internal clock for simulation [t is in minutes, so at t = 60 we have reached one hour]
 	int carsServiced = 0;
 	int trucksServiced = 0;
 	int vehiclesTurnedAway = 0;
 	int totalCars = 0;
 	int totalTrucks = 0;
-
-	// Other Variables
+	int arrivals = 0;
+	std::queue<Vehicle*> IVRQueue; // Store the IVR Vehicles So We Know their Times to Avoid Conflicts
+	std::queue<Vehicle*> carQueue; // Store the Cars Being Services So We Know their Times to Avoid Conflicts
+	std::queue<Vehicle*> truckQueue; // Store the Trucks Being Serviced SO We Know Their Times to Avoid Conflicts
+	Vehicle* currCustomer;
+	
 	DICE d6;
-	queue<Vehicle> carQueue;
-	queue<Vehicle> truckQueue;
-	queue<Vehicle> IVR;
 
-	bool incomingVehicle = false; // Will track if simulation currently has a vehicle coming, and if not will roll dice to see how long before next arriving vehicle
-	double nextEvent; // Tracks when next vehicle tries to enter the queue
+	struct Compare {
+		bool operator()(Event* lhs, Event* rhs) {
+			return lhs->getEventTime() > rhs->getEventTime();
+		}
+	};
 
-	Vehicle newVehicle; // Used to add new vehicles to queue
-	Vehicle transferVehicle; // Used to add new vehicles to either car or truck queue
+	std::priority_queue<Event*, std::vector<Event*>, Compare> eventsQueue; // Keep Our Event List Sorted For Us
 
+	// Initialization
+	float firstArrival = d.rollDice() * 0.333;
+	Event* firstEvent = new Event(EventType::ARRIVAL, new Vehicle(firstArrival), firstArrival);
 
-	// Simulation Start | Condition = Empty and Idle
+	t = firstEvent->getEventTime();
+	eventsQueue.push(firstEvent);
 	
 
-
-	// Advance simulation clock
-	for (t = 0; t < 480; t++) // 480 minutes is 8 hours, or 9am to 5pm
+	// Do Not Strand Customers Left in System
+	while (t < 480 || !eventsQueue.empty()) // 480 minutes is 8 hours, or 9am to 5pm
 	{
-		if (incomingVehicle == false) // No vehicle is currently in route to the queue
-		{
-			nextEvent = ceil(t + (d6.rollDice() * 0.333));
-			incomingVehicle = true;
-			newVehicle.setID(t); // Sets vehicle ID to time it was created
-			newVehicle.randomVehicleType(); // Vehicle generates its vehicle type
-			newVehicle.setArrivalTime(nextEvent); // Sets vehicles arrival time
-			cout << newVehicle.getVType() << endl;
-			if (newVehicle.getVType() == "Car")
-			{
-				totalCars++;
-			}
-			else
-			{
-				totalTrucks++;
-			}
+		Event* currEvent= NULL;
+		// Get Next Event and Remove From Queue
+		if (!eventsQueue.empty()) {
+			currEvent = eventsQueue.top();
+			eventsQueue.pop();
+			t = currEvent->getEventTime();
+		}
+		else {
+			throw std::exception("Empty Event Queue");
+		}
+		
+		if (currEvent->getEventType() == EventType::ARRIVAL) {
+			arrivals++;
 		}
 
-		if (incomingVehicle == true) // A vehicle is on route to queue, car wash runs normally
-		{
-			if (t == nextEvent) // A car has arrived at the car wash
+		// Set Event Current Customer
+		Vehicle* customer = currEvent->getCustomer();
+
+		// Process Event
+		switch (currEvent->getEventType()) {
+			// Upon Arrival
+			case EventType::ARRIVAL:
 			{
-				incomingVehicle = false;
-				if (carQueue.size() + truckQueue.size() <= 10) // If queue in both lines is <= 10 we can add another vehicle to IVR 
-				{
-					IVR.push(Vehicle(newVehicle.getID(), newVehicle.getVType(), newVehicle.getArrivalTime())); // Add arriving vehicle to IVR queue to be processed and added to car or truck queue
-				}
-				else // queue size is > 10
-				{
+				std::cout << t << ": Car " << customer->getID() << " is Arriving" << std::endl;
+
+				customer->isCar() ? totalCars++ : totalTrucks++;
+
+				// std::cout << "There are " << IVRQueue.size() << " Vehicles in Line for the IVR, " << truckQueue.size() << " Trucks in Line for a Wash and " << carQueue.size() << " Cars in Line for a Wash" << std::endl;
+				// Check Queue Lengths
+				if (IVRQueue.size() + carQueue.size() + truckQueue.size() >= 10) {
+					std::cout << "Car " << customer->getID() << " is Turning Away" << std::endl;
+
+					// Depart if Over 10 Vehicles Waiting
+					Event* nextArrival = customer->depart(t, true);
+
 					vehiclesTurnedAway++;
+
+					// Do Not Schedule the Next Arrival if We Are Past 5pm
+					if (nextArrival->getEventTime() < 480) eventsQueue.push(nextArrival);
+
+					break;
 				}
+
+				// Update IVR Queue
+				IVRQueue.push(customer);				
+
+				// Add to IVR and Generate Event
+				std::tuple<Event*, Event*> upcomingEvents = customer->arrive(t, IVRQueue);
+
+				// Update Event Queue
+				eventsQueue.push(std::get<0>(upcomingEvents)); // IVR Serve Start
+
+				Event* nextArrival = std::get<1>(upcomingEvents);
+				// Do Not Schedule the Next Arrival if We Are Past 5pm
+				if (nextArrival->getEventTime() < 480) eventsQueue.push(nextArrival);
+				
+				break;
 			}
-
-			if (!IVR.empty()) // If cars are waiting in IVR queue
+			// After the IVR Delay
+			case EventType::IVR_SERVE:
 			{
-				if (IVR.front().getEnterQueueTime() == -1) // If vehicle has just got to front of IVR queue we must determine how long it takes to process them at queue 
-				{
-					IVR.front().setEnterQueueTime(ceil(t + (d6.rollDice() * 0.3))); // Account for delay at IVR unit
-				}
+				// std::cout << t << ": Car " << customer->getID() << " Is Being Done Being Served By the IVR" << std::endl;
+				IVRQueue.pop(); // Remove the Vehicle From IVR
 
-				else if (IVR.front().getEnterQueueTime() == t) // If vehicle has spent approprate amount of time at IVR station it moves to approporate queue
-				{
-					if (IVR.front().getVType() == "Car")
-					{
-						transferVehicle = IVR.front();
-						carQueue.push(transferVehicle);
-						IVR.pop();
-					}
-					else
-					{
-						transferVehicle = IVR.front();
-						truckQueue.push(transferVehicle);
-						IVR.pop();
-					}
-				}
+				std::queue<Vehicle*>* vehicleQueue = customer->isCar() ? &carQueue : &truckQueue;
+
+				vehicleQueue->push(customer);
+
+				Event* queueArriveEvent = customer->arriveAtQueue(t, *vehicleQueue);
+
+				eventsQueue.push(queueArriveEvent);
+
+				break;
 			}
-
-
-			if (!carQueue.empty()) // If there are cars in the car queue
+			// After the Queue Delay
+			case EventType::VEHICLE_WASH:
 			{
-				if (carQueue.front().getServiceTime() == -1)
-				{
-					carQueue.front().setServiceTime(ceil(t + (d6.rollDice()))); // Set time when car will be serviced 
-				}
-
-				if (carQueue.front().getServiceTime() == t) // If car has been serviced
-				{
+				// std::cout << t << ": Car " << customer->getID() << " Is Being Washed" << std::endl;
+				// Begin Washing the Vehicle and Generate Departure Event
+				if (customer->isCar()) {
 					carQueue.pop();
-					carsServiced++;
 				}
-			}
-
-
-			if (!truckQueue.empty()) // If there are trucks in the truck queue
-			{
-				if (truckQueue.front().getServiceTime() == -1)
-				{
-					truckQueue.front().setServiceTime(ceil(t + (d6.rollDice() * 2))); // Set time when truck will be serviced 
-				}
-
-				if (truckQueue.front().getServiceTime() == t) // If truck has been serviced
-				{
+				else {
 					truckQueue.pop();
-					trucksServiced++;
 				}
-			}
-			
 
+				Event* departureEvent = customer->arriveAtWasher(t);
+
+				eventsQueue.push(departureEvent);
+
+				break;
+			}
+
+			case EventType::DEPARTURE: {
+				std::cout << t << ": Car " << customer->getID() << " Is Done and Leaving the System." << std::endl;
+				// Finish Washing the Vehicle and They Leave
+				customer->isCar() ? carsServiced++ : trucksServiced++;
+				customer->depart(t);
+
+				break;
+			}
 		}
 
+		// Go to Next Event
+		if (!eventsQueue.empty()) t = eventsQueue.top()->getEventTime();
 	}
 
-	cout << "Total Cars: " << totalCars << endl;
-	cout << "Total Trucks: " << totalTrucks << endl;
-	cout << "Cars Serviced: " << carsServiced << endl;
-	cout << "Trucks Serviced: " << trucksServiced << endl;
-	cout << "Vehicles Turned Away: " << vehiclesTurnedAway << endl;
+	std::cout << "Total Arrivals: " << arrivals << std::endl;
+	std::cout << "Total Cars: " << totalCars << std::endl;
+	std::cout << "Total Trucks: " << totalTrucks << std::endl;
+	std::cout << "Cars Serviced: " << carsServiced << std::endl;
+	std::cout << "Trucks Serviced: " << trucksServiced << std::endl;
+	std::cout << "Vehicles Turned Away: " << vehiclesTurnedAway << std::endl;
 
-
-	system("pause");
+	std::system("pause");
 	return 0;
 }

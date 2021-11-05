@@ -1,7 +1,5 @@
-#include <stdio.h>     
-#include <stdlib.h>     
-#include <time.h>
 #pragma once
+
 class DICE
 {
 private:
@@ -54,6 +52,5 @@ public:
 	{
 		return dice1 + dice2;
 	}
-	
-};
 
+};
