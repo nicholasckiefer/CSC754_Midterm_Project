@@ -2,6 +2,7 @@
 #include <stdlib.h>     
 #include <time.h>
 #pragma once
+
 class Event;
 class Vehicle;
 enum EventType;
@@ -9,13 +10,9 @@ enum VehicleType;
 
 DICE d;
 
-enum VehicleStatus {
-	IVR_WAITING, QUEUED_WAITING, SERVING, DEPARTED
-};
+enum VehicleStatus { IVR_WAITING, QUEUED_WAITING, SERVING, DEPARTED };
 
-enum VehicleType {
-	CAR, TRUCK
-};
+enum VehicleType { CAR, TRUCK };
 
 class Vehicle
 {
@@ -36,7 +33,7 @@ public:
 	}
 
 	// Accessor Functions
-	int getID() 
+	float getID() 
 	{
 		return id;
 	}
@@ -70,9 +67,7 @@ public:
 
 	// Vehicle Finishes Washing, Departs System
 	Event* depart(float departureTime, bool premature = false) {
-		if (premature) {
-			return generateNextArrival(departureTime);
-		}
+		if (premature) return generateNextArrival(departureTime);
 
 		this->events.push_back(new Event(EventType::DEPARTURE, this, departureTime));
 		this->status = VehicleStatus::DEPARTED;
@@ -97,16 +92,16 @@ public:
 		Event* nextEvent;
 
 		if (IVRQueue.empty()) {
-			nextEvent = new Event(EventType::IVR_SERVE, this, t + d.rollDice() * 0.3);
+			nextEvent = new Event(EventType::IVR_SERVE, this, t + roll * 0.3);
 			this->events.push_back(nextEvent);
 
 			return nextEvent;
 		}
 		
-		Vehicle* nextVehicle = IVRQueue.front();
+		Vehicle* nextVehicle = IVRQueue.back();
 
 		// Use this to Enforce Queue Order
-		nextEvent = new Event(EventType::IVR_SERVE, this, nextVehicle->getNextEvent() + d.rollDice() * 0.3);
+		nextEvent = new Event(EventType::IVR_SERVE, this, nextVehicle->getNextEvent() + (roll * 0.3));
 
 		this->events.push_back(nextEvent);
 
@@ -117,34 +112,37 @@ public:
 	Event* generateWashStartTime(float t, std::queue<Vehicle*>& vehicleQueue) {
 		Event* nextEvent;
 
+		float roll = d.rollDice();
+		float tt = this->isCar() ? roll : (roll * 2);
+		
 		if (vehicleQueue.empty()) {
-			nextEvent = new Event(EventType::VEHICLE_WASH, this, t); // If No One in Front, Get Served Immediately
+			nextEvent = new Event(EventType::VEHICLE_WASH, this, t + tt); // If No One in Front, Get Served Immediately
 			this->events.push_back(nextEvent);
 
 			return nextEvent;
 		}
 
-		Vehicle* nextVehicle = vehicleQueue.front();
+		Vehicle* nextVehicle = vehicleQueue.back();
 
 		// Use this to Enforce Queue Order
 		// Assume it Takes 0.01 Minutes to Wait for Person in Front to Leave and Be Ready to Wash
-		nextEvent = new Event(EventType::VEHICLE_WASH, this, nextVehicle->getNextEvent() + 0.01);
+		nextEvent = new Event(EventType::VEHICLE_WASH, this, nextVehicle->getNextEvent() + tt);
 		this->events.push_back(nextEvent);
-
+		
 		return nextEvent;
 	}
 	
 	// Once the Vehicle is at the Washing Station, Schedule When it Will Finish
 	Event* generateWashFinishTime(float t) {
 		int roll = d.rollDice();
-		Event* nextEvent = new Event(EventType::DEPARTURE, this, this->isCar() ? t + roll : t + (roll * 2));
+
+		Event* nextEvent = new Event(EventType::DEPARTURE, this, t);
 		this->events.push_back(nextEvent);
 
 		return nextEvent;
 	}
 
-	VehicleType getVehicleType()
-	{
+	VehicleType getVehicleType() {
 		return vehicleType;
 	}
 
@@ -156,8 +154,11 @@ public:
 		return vehicleType == VehicleType::TRUCK;
 	}
 
-	VehicleType getRandomVehicleType()
-	{
+	std::string getVehicleTypeString() {
+		return isCar() ? "Car" : "Truck";
+	}
+
+	VehicleType getRandomVehicleType() {
 		float chance;
 		chance = (rand() / (float)RAND_MAX) * 100; // Range [0-100]
 

@@ -14,7 +14,7 @@ int main()
 	// Global Statistic Variables
 
 	// Initialize System State and staistical counters
-	int t = 0; // set internal clock for simulation [t is in minutes, so at t = 60 we have reached one hour]
+	float t = 0; // set internal clock for simulation [t is in minutes, so at t = 60 we have reached one hour]
 	int carsServiced = 0;
 	int trucksServiced = 0;
 	int vehiclesTurnedAway = 0;
@@ -62,6 +62,8 @@ int main()
 			arrivals++;
 		}
 
+		if (t > 480) std::cout << "Time over 480: " << IVRQueue.size() + carQueue.size() + truckQueue.size() << std::endl;
+
 		// Set Event Current Customer
 		Vehicle* customer = currEvent->getCustomer();
 
@@ -70,14 +72,12 @@ int main()
 			// Upon Arrival
 			case EventType::ARRIVAL:
 			{
-				std::cout << t << ": Car " << customer->getID() << " is Arriving" << std::endl;
-
 				customer->isCar() ? totalCars++ : totalTrucks++;
 
 				// std::cout << "There are " << IVRQueue.size() << " Vehicles in Line for the IVR, " << truckQueue.size() << " Trucks in Line for a Wash and " << carQueue.size() << " Cars in Line for a Wash" << std::endl;
 				// Check Queue Lengths
 				if (IVRQueue.size() + carQueue.size() + truckQueue.size() >= 10) {
-					std::cout << "Car " << customer->getID() << " is Turning Away" << std::endl;
+					// std::cout << "Car " << customer->getID() << " is Turning Away" << std::endl;
 
 					// Depart if Over 10 Vehicles Waiting
 					Event* nextArrival = customer->depart(t, true);
@@ -89,17 +89,19 @@ int main()
 
 					break;
 				}
-
-				// Update IVR Queue
-				IVRQueue.push(customer);				
+ 
+				std::cout << t << ": " << customer->getVehicleTypeString() << " " << customer->getID() << " is Arriving" << std::endl;
 
 				// Add to IVR and Generate Event
 				std::tuple<Event*, Event*> upcomingEvents = customer->arrive(t, IVRQueue);
 
 				// Update Event Queue
+				IVRQueue.push(customer);
 				eventsQueue.push(std::get<0>(upcomingEvents)); // IVR Serve Start
 
 				Event* nextArrival = std::get<1>(upcomingEvents);
+				// std::cout << t << ": Next Arrival is in " << nextArrival->getEventTime() - t << " Minutes" << std::endl;
+
 				// Do Not Schedule the Next Arrival if We Are Past 5pm
 				if (nextArrival->getEventTime() < 480) eventsQueue.push(nextArrival);
 				
@@ -108,14 +110,14 @@ int main()
 			// After the IVR Delay
 			case EventType::IVR_SERVE:
 			{
-				// std::cout << t << ": Car " << customer->getID() << " Is Being Done Being Served By the IVR" << std::endl;
+				std::cout << t << ": " << customer->getVehicleTypeString() << " " << customer->getID() << " Is Being Done Being Served By the IVR" << std::endl;
 				IVRQueue.pop(); // Remove the Vehicle From IVR
 
 				std::queue<Vehicle*>* vehicleQueue = customer->isCar() ? &carQueue : &truckQueue;
 
-				vehicleQueue->push(customer);
-
 				Event* queueArriveEvent = customer->arriveAtQueue(t, *vehicleQueue);
+
+				vehicleQueue->push(customer);
 
 				eventsQueue.push(queueArriveEvent);
 
@@ -124,15 +126,7 @@ int main()
 			// After the Queue Delay
 			case EventType::VEHICLE_WASH:
 			{
-				// std::cout << t << ": Car " << customer->getID() << " Is Being Washed" << std::endl;
-				// Begin Washing the Vehicle and Generate Departure Event
-				if (customer->isCar()) {
-					carQueue.pop();
-				}
-				else {
-					truckQueue.pop();
-				}
-
+				std::cout << t << ": " << customer->getVehicleTypeString() << " " << customer->getID() << " Is Being Washed" << std::endl;
 				Event* departureEvent = customer->arriveAtWasher(t);
 
 				eventsQueue.push(departureEvent);
@@ -141,10 +135,12 @@ int main()
 			}
 
 			case EventType::DEPARTURE: {
-				std::cout << t << ": Car " << customer->getID() << " Is Done and Leaving the System." << std::endl;
+				std::cout << t << ": " << customer->getVehicleTypeString() << " " << customer->getID() << " Is Done and Leaving the System." << std::endl;
 				// Finish Washing the Vehicle and They Leave
 				customer->isCar() ? carsServiced++ : trucksServiced++;
 				customer->depart(t);
+
+				customer->isCar() ? carQueue.pop() : truckQueue.pop();
 
 				break;
 			}
@@ -153,6 +149,8 @@ int main()
 		// Go to Next Event
 		if (!eventsQueue.empty()) t = eventsQueue.top()->getEventTime();
 	}
+
+	std::cout << std::endl;
 
 	std::cout << "Total Arrivals: " << arrivals << std::endl;
 	std::cout << "Total Cars: " << totalCars << std::endl;

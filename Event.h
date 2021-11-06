@@ -5,9 +5,7 @@ class Vehicle;
 enum VehicleType;
 enum VechicleStatus;
 
-enum EventType {
-    ARRIVAL, IVR_ARRIVE, IVR_SERVE, QUEUE_ARRIVE, VEHICLE_WASH, DEPARTURE
-};
+enum EventType { ARRIVAL, IVR_ARRIVE, IVR_SERVE, QUEUE_ARRIVE, VEHICLE_WASH, DEPARTURE };
 
 class Event {
 
