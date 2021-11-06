@@ -38,7 +38,7 @@ std::tuple<float, float> confidenceInterval(std::vector<float> vals, float z, fl
 int main()
 {
 	// Simulation Parameters
-	int numRuns = 5;
+	int numRuns = 30;
 	float waitTimeThreshold = 1;
 	int rejectionThreshold = 10;
 
