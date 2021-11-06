@@ -11,8 +11,15 @@
 
 int main()
 {
-	int numRuns = 30;
+	// Simulation Parameters
+	int numRuns = 5;
+	float waitTimeThreshold = 1;
+	int rejectionThreshold = 10;
+
+	// Cumulative Statistical Counters
 	float totalTime = 0;
+	int totalArrivals = 0;
+	int totalVehiclesOverMinWait = 0;
 	int totalCarsSeen = 0;
 	int totalTrucksSeen = 0;
 	int totalCarsServiced = 0;
@@ -20,9 +27,14 @@ int main()
 	int totalVehiclesTurnedAway = 0;
 	float totalCarWashBusyTime = 0;
 	float totalTruckWashBusyTime = 0;
+	float totalMaxCarWaitTime = 0;
+	std::vector<float> totalAvgCarWaitTimes;
+	std::vector<float> totalAvgTruckWaitTimes;
+	float totalMinTruckWaitTime = 0;
+	float totalMaxTruckWaitTime = 0;
 
 	for (int k = 0; k < numRuns; k++) {
-		// Staistical counters
+		// Local Staistical counters
 		float t = 0; // set internal clock for simulation [t is in minutes, so at t = 60 we have reached one hour]
 		float carWashBusyTime = 0;
 		float truckWashBusyTime = 0;
@@ -32,9 +44,18 @@ int main()
 		int totalCars = 0;
 		int totalTrucks = 0;
 		int arrivals = 0;
-
-		std::vector<Vehicle*> carsOrder;
-		std::vector<Vehicle*> trucksOrder;
+		int timeSpentWaiting = 0; // Track time customer spent waiting
+		int vehiclesOverMinWait = 0;
+		float minCarWaitTime = 0;
+		float maxCarWaitTime = 0;
+		std::vector<float> carWaitTimes;
+		std::vector<float> truckWaitTimes;
+		int carsWaitingOverThreshold = 0;
+		int truckWaitingOverThreshold = 0;
+		float minTruckWaitTime = 0;
+		float maxTruckWaitTime = 0;
+		std::vector<Vehicle*> carCustomers;
+		std::vector<Vehicle*> truckCustomers;
 
 		// State
 		std::queue<Vehicle*> IVRQueue; // Store the IVR Vehicles So We Know their Times to Avoid Conflicts
@@ -43,8 +64,6 @@ int main()
 		Vehicle* currCustomer;
 		float carWashLastBusy = 0;
 		float truckWashLastBusy = 0;
-
-		DICE d6;
 
 		struct Compare {
 			bool operator()(Event* lhs, Event* rhs) {
@@ -61,7 +80,6 @@ int main()
 		t = firstEvent->getEventTime();
 		eventsQueue.push(firstEvent);
 
-
 		// Do Not Strand Customers Left in System
 		while (t < 480 || !eventsQueue.empty()) // 480 minutes is 8 hours, or 9am to 5pm
 		{
@@ -76,10 +94,6 @@ int main()
 				throw std::exception("Empty Event Queue");
 			}
 
-			if (currEvent->getEventType() == EventType::ARRIVAL) {
-				arrivals++;
-			}
-
 			if (t > 480) std::cout << "Time over 480: " << IVRQueue.size() + carQueue.size() + truckQueue.size() << std::endl;
 
 			// Set Event Current Customer
@@ -90,11 +104,12 @@ int main()
 				// Upon Arrival
 			case EventType::ARRIVAL:
 			{
+				arrivals++;
 				customer->isCar() ? totalCars++ : totalTrucks++;
 
 				// std::cout << "There are " << IVRQueue.size() << " Vehicles in Line for the IVR, " << truckQueue.size() << " Trucks in Line for a Wash and " << carQueue.size() << " Cars in Line for a Wash" << std::endl;
 				// Check Queue Lengths
-				if (IVRQueue.size() + carQueue.size() + truckQueue.size() >= 10) {
+				if (IVRQueue.size() + carQueue.size() + truckQueue.size() >= rejectionThreshold) {
 					std::cout << "Car " << customer->getID() << " is Turning Away" << std::endl;
 
 					// Depart if Over 10 Vehicles Waiting
@@ -149,7 +164,7 @@ int main()
 			case EventType::VEHICLE_WASH:
 			{
 				std::cout << t << ": " << customer->getVehicleTypeString() << " " << customer->getID() << " Is Being Washed" << std::endl;
-				
+
 				if (customer->isCar()) {
 					carWashLastBusy = t;
 				}
@@ -158,6 +173,12 @@ int main()
 				}
 
 				customer->arriveAtWasher(t);
+				
+				timeSpentWaiting = t - customer->getID();
+				if (timeSpentWaiting > 1)
+				{
+					vehiclesOverMinWait++;
+				}
 
 				break;
 			}
@@ -170,17 +191,10 @@ int main()
 
 				if (customer->isCar()) {
 					carWashBusyTime += t - carWashLastBusy;
-				}
-				else {
-					truckWashBusyTime += t - truckWashLastBusy;
-				}
-
-				if (customer->isCar()) {
-					carsOrder.push_back(carQueue.front());
 					carQueue.pop();
 				}
 				else {
-					trucksOrder.push_back(truckQueue.front());
+					truckWashBusyTime += t - truckWashLastBusy;
 					truckQueue.pop();
 				}
 
@@ -195,6 +209,7 @@ int main()
 		std::cout << std::endl;
 
 		totalTime += t;
+		totalArrivals += arrivals;
 		totalCarsSeen += totalCars;
 		totalTrucksSeen += totalTrucks;
 		totalCarsServiced += carsServiced;
@@ -202,6 +217,7 @@ int main()
 		totalVehiclesTurnedAway += vehiclesTurnedAway;
 		totalCarWashBusyTime += carWashBusyTime;
 		totalTruckWashBusyTime += truckWashBusyTime;
+		totalVehiclesOverMinWait += vehiclesOverMinWait;
 
 		std::cout << "Total Arrivals: " << arrivals << std::endl;
 		std::cout << "Total Cars: " << totalCars << std::endl;
@@ -209,20 +225,27 @@ int main()
 		std::cout << "Cars Serviced: " << carsServiced << std::endl;
 		std::cout << "Trucks Serviced: " << trucksServiced << std::endl;
 		std::cout << "Vehicles Turned Away: " << vehiclesTurnedAway << std::endl;
+		std::cout << "Percentage of vehicles with wait time > 1 min: " << ((float)(vehiclesOverMinWait) / (float)(totalCars + totalTrucks)) * 100 << "%" << std::endl;
 	}
 
 	std::cout << std::endl;
-
-	std::cout << "Overall Time: " << totalTime << std::endl;
-	std::cout << "Overall Total Cars: " << totalCarsSeen << std::endl;
-	std::cout << "Overall Total Trucks: " << totalTrucksSeen << std::endl;
-	std::cout << "Overall Cars Serviced: " << totalCarsServiced << std::endl;
-	std::cout << "Overall Trucks Serviced: " << totalTrucksServiced << std::endl;
-	std::cout << "Overall Vehicles Turned Away: " << totalVehiclesTurnedAway << std::endl;
-	std::cout << "Overall CarWash Busy Time: " << totalCarWashBusyTime << std::endl;
-	std::cout << "Overall CarWash Utilization: " << float(totalCarWashBusyTime / totalTime) << std::endl;
-	std::cout << "Overall TruckWash Busy Time: " << totalTruckWashBusyTime << std::endl;
-	std::cout << "Overall TruckWash Utilization: " << float(totalTruckWashBusyTime / totalTime) << std::endl;
+	
+	std::cout << "Overall Time: " << totalTime << " minutes" << std::endl;
+	std::cout << "Average Time: " << float(totalTime / numRuns) << " minutes" << std::endl;
+	std::cout << "Overall Total Vehicles: " << totalArrivals << " vehicles" << std::endl;
+	std::cout << "Overall Total Cars: " << totalCarsSeen << " cars" << std::endl;
+	std::cout << "Overall Total Trucks: " << totalTrucksSeen << " trucks" << std::endl;
+	std::cout << "Overall Cars Serviced: " << totalCarsServiced << " cars" << std::endl;
+	std::cout << "Overall Trucks Serviced: " << totalTrucksServiced << " trucks" << std::endl;
+	std::cout << "Overall Vehicles Turned Away: " << totalVehiclesTurnedAway << " vehicles" << std::endl;
+	std::cout << "Percentage Vehicles Turned Away: " << float(totalVehiclesTurnedAway / float(totalCarsSeen + totalTrucksSeen)) * 100 << "%" << std::endl;
+	std::cout << "Overall CarWash Busy Time: " << totalCarWashBusyTime << " minutes" << std::endl;
+	std::cout << "Average CarWash Busy Time: " << float(totalCarWashBusyTime / numRuns) << " minutes" << std::endl;
+	std::cout << "Average CarWash Utilization: " << float(totalCarWashBusyTime / totalTime) * 100 << "%" << std::endl;
+	std::cout << "Overall TruckWash Busy Time: " << totalTruckWashBusyTime << " minutes" << std::endl;
+	std::cout << "Average CarWash Busy Time: " << float(totalTruckWashBusyTime / numRuns) << " minutes" << std::endl;
+	std::cout << "Average TruckWash Utilization : " << float(totalTruckWashBusyTime / totalTime) * 100 << "%" << std::endl;
+	std::cout << "Percentage of vehicles with wait time > 1 min: " << ((float)(totalVehiclesOverMinWait) / (float)(totalCarsSeen + totalTrucksSeen)) * 100 << "%" << std::endl;
 
 	std::system("pause");
 	return 0;
