@@ -377,13 +377,13 @@ int main()
 	std::cout << std::endl;
 
 	std::cout << "Car Wait Time Confidence Interval: " << std::get<0>(carWaitConfidence) << " - " << std::get<1>(carWaitConfidence) << " minutes" << std::endl;
-	std::cout << "Car Min Wait Time Confidence Interval: " << std::get<0>(carMinWaitConfidence) << " - " << std::get<1>(carWaitConfidence) << " minutes" << std::endl;
-	std::cout << "Car Max Wait Time Confidence Interval: " << std::get<0>(carMaxWaitConfidence) << " - " << std::get<1>(carWaitConfidence) << " minutes" << std::endl;
+	std::cout << "Car Min Wait Time Confidence Interval: " << std::get<0>(carMinWaitConfidence) << " - " << std::get<1>(carMinWaitConfidence) << " minutes" << std::endl;
+	std::cout << "Car Max Wait Time Confidence Interval: " << std::get<0>(carMaxWaitConfidence) << " - " << std::get<1>(carMaxWaitConfidence) << " minutes" << std::endl;
 	std::cout << std::endl;
 
 	std::cout << "Truck Wait Time Confidence Interval: " << std::get<0>(truckWaitConfidence) << " - " << std::get<1>(truckWaitConfidence) << " minutes" << std::endl;
-	std::cout << "Truck Min Wait Time Confidence Interval: " << std::get<0>(truckMinWaitConfidence) << " - " << std::get<1>(truckWaitConfidence) << " minutes" << std::endl;
-	std::cout << "Truck Max Wait Time Confidence Interval: " << std::get<0>(truckMaxWaitConfidence) << " - " << std::get<1>(truckWaitConfidence) << " minutes" << std::endl;
+	std::cout << "Truck Min Wait Time Confidence Interval: " << std::get<0>(truckMinWaitConfidence) << " - " << std::get<1>(truckMinWaitConfidence) << " minutes" << std::endl;
+	std::cout << "Truck Max Wait Time Confidence Interval: " << std::get<0>(truckMaxWaitConfidence) << " - " << std::get<1>(truckMaxWaitConfidence) << " minutes" << std::endl;
 
 	std::system("pause");
 	return 0;
