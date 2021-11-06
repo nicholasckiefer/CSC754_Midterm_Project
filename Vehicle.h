@@ -52,24 +52,21 @@ public:
 	}
 
 	// Vehicle Departs IVR, Waits in Respective Queue for Wash
-	Event* arriveAtQueue(float arrivalTime, std::queue<Vehicle*>& vehicleQueue) {
+	std::tuple<Event*, Event*> arriveAtQueue(float arrivalTime, std::queue<Vehicle*>& vehicleQueue) {
 		this->status = VehicleStatus::QUEUED_WAITING;
 
-		return generateWashStartTime(arrivalTime, vehicleQueue);
+		return generateWashTimes(arrivalTime, vehicleQueue);
 	}
 
 	// Vehicle Arrives at Washing Station
-	Event* arriveAtWasher(float arrivalTime) {
+	void arriveAtWasher(float arrivalTime) {
 		this->status = VehicleStatus::SERVING;
-
-		return generateWashFinishTime(arrivalTime);
 	}
 
 	// Vehicle Finishes Washing, Departs System
 	Event* depart(float departureTime, bool premature = false) {
 		if (premature) return generateNextArrival(departureTime);
 
-		this->events.push_back(new Event(EventType::DEPARTURE, this, departureTime));
 		this->status = VehicleStatus::DEPARTED;
 
 		return NULL;
@@ -109,37 +106,37 @@ public:
 	}
 
 	// Once the Vehicle is in the Wash Queue, Schedule the Time it Should Get Serviced Based on Queue
-	Event* generateWashStartTime(float t, std::queue<Vehicle*>& vehicleQueue) {
+	std::tuple<Event*, Event*> generateWashTimes(float t, std::queue<Vehicle*>& vehicleQueue) {
 		Event* nextEvent;
+		Event* departureEvent;
 
 		float roll = d.rollDice();
 		float tt = this->isCar() ? roll : (roll * 2);
 		
 		if (vehicleQueue.empty()) {
-			nextEvent = new Event(EventType::VEHICLE_WASH, this, t + tt); // If No One in Front, Get Served Immediately
+			nextEvent = new Event(EventType::VEHICLE_WASH, this, t); // If No One in Front, Get Served Immediately
+			departureEvent = new Event(EventType::DEPARTURE, this, t + tt);
+			
 			this->events.push_back(nextEvent);
+			this->events.push_back(departureEvent);
 
-			return nextEvent;
+			return std::make_tuple(nextEvent, departureEvent);
 		}
 
 		Vehicle* nextVehicle = vehicleQueue.back();
+		if (nextVehicle->events.back()->getEventType() != EventType::DEPARTURE) throw new std::exception("WE FUCKED");
+
+		//std::cout << "Next Car Departing? " << yn << std::endl;
 
 		// Use this to Enforce Queue Order
-		// Assume it Takes 0.01 Minutes to Wait for Person in Front to Leave and Be Ready to Wash
-		nextEvent = new Event(EventType::VEHICLE_WASH, this, nextVehicle->getNextEvent() + tt);
+		// Wait for Person in Front to Leave and Be Ready to Wash
+		nextEvent = new Event(EventType::VEHICLE_WASH, this, nextVehicle->getNextEvent() + 0.01);
+		departureEvent = new Event(EventType::DEPARTURE, this, nextVehicle->getNextEvent() + 0.01 + tt);
+
 		this->events.push_back(nextEvent);
+		this->events.push_back(departureEvent);
 		
-		return nextEvent;
-	}
-	
-	// Once the Vehicle is at the Washing Station, Schedule When it Will Finish
-	Event* generateWashFinishTime(float t) {
-		int roll = d.rollDice();
-
-		Event* nextEvent = new Event(EventType::DEPARTURE, this, t);
-		this->events.push_back(nextEvent);
-
-		return nextEvent;
+		return std::make_tuple(nextEvent, departureEvent);
 	}
 
 	VehicleType getVehicleType() {
