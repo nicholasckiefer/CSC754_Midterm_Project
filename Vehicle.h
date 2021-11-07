@@ -27,6 +27,7 @@ private:
 	VehicleType vehicleType;
 	std::vector<Event*> events;
 	VehicleStatus status;
+	int queueNum;
 
 public:
 	// Constructor
@@ -45,6 +46,16 @@ public:
 
 	float getNextEvent() {
 		return this->events.back()->getEventTime();
+	}
+
+	int getQueueNum()
+	{
+		return queueNum;
+	}
+
+	void setQueueNum(int newQueueNum)
+	{
+		queueNum = newQueueNum;
 	}
 
 	// Vehicle Arrives in System, Goes to IVR
@@ -116,7 +127,7 @@ public:
 		Event* departureEvent;
 
 		float roll = d.rollDice();
-		float tt = this->isCar() ? roll : (roll * 2);
+		float tt = this->isCar() ? (roll) : (roll * 2);
 
 		if (vehicleQueue.empty()) {
 			nextEvent = new Event(EventType::VEHICLE_WASH, this, t); // If No One in Front, Get Served Immediately
@@ -129,7 +140,7 @@ public:
 		}
 
 		Vehicle* nextVehicle = vehicleQueue.back();
-		if (nextVehicle->events.back()->getEventType() != EventType::DEPARTURE) throw new std::exception("WE FUCKED");
+		if (nextVehicle->events.back()->getEventType() != EventType::DEPARTURE) throw new std::exception("");
 
 		//std::cout << "Next Car Departing? " << yn << std::endl;
 
@@ -174,4 +185,5 @@ public:
 		}
 	}
 };
+
 
