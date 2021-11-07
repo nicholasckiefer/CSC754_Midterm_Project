@@ -147,8 +147,6 @@ public:
 		Vehicle* nextVehicle = vehicleQueue.back();
 		if (nextVehicle->events.back()->getEventType() != EventType::DEPARTURE) throw new std::exception("Something is Broken");
 
-		//std::cout << "Next Car Departing? " << yn << std::endl;
-
 		// Use this to Enforce Queue Order
 		// Wait for Person in Front to Leave and Be Ready to Wash
 		nextEvent = new Event(EventType::VEHICLE_WASH, this, nextVehicle->getNextEvent() + 0.01);

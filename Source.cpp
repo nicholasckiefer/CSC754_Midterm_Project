@@ -39,7 +39,7 @@ std::tuple<float, float> confidenceInterval(std::vector<float> vals, float z, fl
 int main()
 {
 	// Simulation Parameters
-	int numRuns = 1;
+	int numRuns = 30;
 	float waitTimeThreshold = 1;
 	int rejectionThreshold = 10;
 
@@ -131,7 +131,6 @@ int main()
 				t = currEvent->getEventTime();
 			}
 			else {
-				std::cout << "Event Queue Empty" << std::endl;
 				throw std::exception("Empty Event Queue");
 			}
 
@@ -242,7 +241,6 @@ int main()
 				customer->isCar() ? carsServiced++ : trucksServiced++;
 				customer->depart(t);
 
-				std::cout << customer->getVehicleQueue() << std::endl;
 				customer->getVehicleQueue()->pop();
 
 				if (customer->isCar()) {

@@ -20,7 +20,6 @@ public:
 
 		for (int i = 0; i < numQueues; i++) {
 			std::queue<Vehicle*>* vehicleQueue = new std::queue<Vehicle*>;
-			std::cout << vehicleQueue << std::endl;
 			vehicleQueues.push_back(vehicleQueue);
 		}
 
@@ -43,11 +42,6 @@ public:
 
 		this->sort();
 		this->totalSize = this->totalSize + 1;
-
-		int i = 1;
-		for (std::queue<Vehicle*>* vehicleQueue : vehicleQueues) {
-			std::cout << i << " Queue Size: " << vehicleQueue->size() << std::endl;
-		}
 
 		return topQueue;
 	}
