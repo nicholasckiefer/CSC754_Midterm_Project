@@ -8,6 +8,7 @@
 #include "DICE.h"
 #include "Event.h"
 #include "Vehicle.h"
+#include "VehicleQueue.h"
 
 float standardDeviation(std::vector<float> vals, float mean) {
 	float sum = 0;
@@ -38,7 +39,7 @@ std::tuple<float, float> confidenceInterval(std::vector<float> vals, float z, fl
 int main()
 {
 	// Simulation Parameters
-	int numRuns = 30;
+	int numRuns = 1;
 	float waitTimeThreshold = 1;
 	int rejectionThreshold = 10;
 
@@ -89,10 +90,17 @@ int main()
 		std::vector<Vehicle*> carCustomers;
 		std::vector<Vehicle*> truckCustomers;
 
+		struct QueueCompare {
+			bool operator()(std::queue<Vehicle*>* lhs, std::queue<Vehicle*>* rhs) {
+				return lhs->size() > rhs->size();
+			}
+		};
+
 		// State
-		std::queue<Vehicle*> IVRQueue; // Store the IVR Vehicles So We Know their Times to Avoid Conflicts
-		std::queue<Vehicle*> carQueue; // Store the Cars Being Services So We Know their Times to Avoid Conflicts
-		std::queue<Vehicle*> truckQueue; // Store the Trucks Being Serviced So We Know Their Times to Avoid Conflicts
+		VehicleQueue* ivrQueues = new VehicleQueue(3);
+		VehicleQueue* carQueues = new VehicleQueue(3);
+		VehicleQueue* truckQueues = new VehicleQueue(3);
+
 		Vehicle* currCustomer;
 		float carWashLastBusy = 0;
 		float truckWashLastBusy = 0;
@@ -123,10 +131,11 @@ int main()
 				t = currEvent->getEventTime();
 			}
 			else {
+				std::cout << "Event Queue Empty" << std::endl;
 				throw std::exception("Empty Event Queue");
 			}
 
-			if (t > 480) std::cout << "Time over 480: " << IVRQueue.size() + carQueue.size() + truckQueue.size() << std::endl;
+			if (t > 480) std::cout << "Time over 480: " << ivrQueues->size() + carQueues->size() + truckQueues->size() << std::endl;
 
 			// Set Event Current Customer
 			Vehicle* customer = currEvent->getCustomer();
@@ -139,12 +148,12 @@ int main()
 				arrivals++;
 				customer->isCar() ? totalCars++ : totalTrucks++;
 
-				// std::cout << "There are " << IVRQueue.size() << " Vehicles in Line for the IVR, " << truckQueue.size() << " Trucks in Line for a Wash and " << carQueue.size() << " Cars in Line for a Wash" << std::endl;
+				// std::cout << "There are " << ivrQueues->size() << " Vehicles in Line for the IVR, " << truckQueues->size() << " Trucks in Line for a Wash and " << carQueues->size() << " Cars in Line for a Wash" << std::endl;
 				// Check Queue Lengths
-				if (IVRQueue.size() + carQueue.size() + truckQueue.size() >= rejectionThreshold) {
+				if (ivrQueues->size() + carQueues->size() + truckQueues->size() >= rejectionThreshold) {
 					std::cout << "Car " << customer->getID() << " is Turning Away" << std::endl;
 
-					// Depart if Over 10 Vehicles Waiting
+					// Depart if Over Threshold Vehicles Waiting
 					Event* nextArrival = customer->depart(t, true);
 
 					vehiclesTurnedAway++;
@@ -158,10 +167,11 @@ int main()
 				std::cout << t << ": " << customer->getVehicleTypeString() << " " << customer->getID() << " is Arriving" << std::endl;
 
 				// Add to IVR and Generate Event
-				std::tuple<Event*, Event*> upcomingEvents = customer->arrive(t, IVRQueue);
+				std::tuple<Event*, Event*> upcomingEvents = customer->arrive(t, *ivrQueues->top());
+				customer->setIVRQueue(ivrQueues->top());
 
 				// Update Event Queue
-				IVRQueue.push(customer);
+				ivrQueues->push(customer);
 				eventsQueue.push(std::get<0>(upcomingEvents)); // IVR Serve Start
 
 				Event* nextArrival = std::get<1>(upcomingEvents);
@@ -176,13 +186,16 @@ int main()
 			case EventType::IVR_SERVE:
 			{
 				std::cout << t << ": " << customer->getVehicleTypeString() << " " << customer->getID() << " Is Being Done Being Served By the IVR" << std::endl;
-				IVRQueue.pop(); // Remove the Vehicle From IVR
+				customer->getIVRQueue()->pop(); // Remove the Vehicle From IVR
+				ivrQueues->shrink();
+				ivrQueues->sort();
 
-				std::queue<Vehicle*>* vehicleQueue = customer->isCar() ? &carQueue : &truckQueue;
+				VehicleQueue* vehicleQueue = customer->isCar() ? carQueues : truckQueues;
 
-				std::tuple<Event*, Event*> queueWashEvents = customer->arriveAtQueue(t, *vehicleQueue);
+				std::tuple<Event*, Event*> queueWashEvents = customer->arriveAtQueue(t, *vehicleQueue->top());
 
-				vehicleQueue->push(customer);
+				std::queue<Vehicle*>* customerQueue = vehicleQueue->push(customer);
+				customer->setVehicleQueue(customerQueue);
 
 				Event* washStart = std::get<0>(queueWashEvents);
 				Event* washEnd = std::get<1>(queueWashEvents);
@@ -229,13 +242,20 @@ int main()
 				customer->isCar() ? carsServiced++ : trucksServiced++;
 				customer->depart(t);
 
+				std::cout << customer->getVehicleQueue() << std::endl;
+				customer->getVehicleQueue()->pop();
+
 				if (customer->isCar()) {
 					carWashBusyTime += t - carWashLastBusy;
-					carQueue.pop();
+
+					carQueues->shrink();
+					carQueues->sort();
 				}
 				else {
 					truckWashBusyTime += t - truckWashLastBusy;
-					truckQueue.pop();
+
+					truckQueues->shrink();
+					truckQueues->sort();
 				}
 
 				break;

@@ -1,3 +1,4 @@
+#pragma once
 #include <stdio.h>     
 #include <stdlib.h>     
 #include <time.h>
@@ -22,6 +23,8 @@ private:
 	VehicleType vehicleType;
 	std::vector<Event*> events;
 	VehicleStatus status;
+	std::queue<Vehicle*>* vehicleQueue;
+	std::queue<Vehicle*>* ivrQueue;
 
 public:
 	// Constructor
@@ -33,13 +36,29 @@ public:
 	}
 
 	// Accessor Functions
-	float getID() 
+	float getID()
 	{
 		return id;
 	}
 
 	float getNextEvent() {
 		return this->events.back()->getEventTime();
+	}
+
+	void setVehicleQueue(std::queue<Vehicle*>* vehicleQueue) {
+		this->vehicleQueue = vehicleQueue;
+	}
+
+	std::queue<Vehicle*>* getVehicleQueue() {
+		return this->vehicleQueue;
+	}
+
+	void setIVRQueue(std::queue<Vehicle*>* ivrQueue) {
+		this->ivrQueue = ivrQueue;
+	}
+
+	std::queue<Vehicle*>* getIVRQueue() {
+		return this->ivrQueue;
 	}
 
 	// Vehicle Arrives in System, Goes to IVR
@@ -89,12 +108,13 @@ public:
 		Event* nextEvent;
 
 		if (IVRQueue.empty()) {
-			nextEvent = new Event(EventType::IVR_SERVE, this, t + roll * 0.3);
+			//nextEvent = new Event(EventType::IVR_SERVE, this, t + roll * 0.3);
+			nextEvent = new Event(EventType::IVR_SERVE, this, t + roll * 0.08);
 			this->events.push_back(nextEvent);
 
 			return nextEvent;
 		}
-		
+
 		Vehicle* nextVehicle = IVRQueue.back();
 
 		// Use this to Enforce Queue Order
@@ -111,12 +131,13 @@ public:
 		Event* departureEvent;
 
 		float roll = d.rollDice();
-		float tt = this->isCar() ? roll : (roll * 2);
-		
+		//float tt = this->isCar() ? roll : (roll * 2);
+		float tt = this->isCar() ? roll * 0.5 : roll;
+
 		if (vehicleQueue.empty()) {
 			nextEvent = new Event(EventType::VEHICLE_WASH, this, t); // If No One in Front, Get Served Immediately
 			departureEvent = new Event(EventType::DEPARTURE, this, t + tt);
-			
+
 			this->events.push_back(nextEvent);
 			this->events.push_back(departureEvent);
 
@@ -124,7 +145,7 @@ public:
 		}
 
 		Vehicle* nextVehicle = vehicleQueue.back();
-		if (nextVehicle->events.back()->getEventType() != EventType::DEPARTURE) throw new std::exception("WE FUCKED");
+		if (nextVehicle->events.back()->getEventType() != EventType::DEPARTURE) throw new std::exception("Something is Broken");
 
 		//std::cout << "Next Car Departing? " << yn << std::endl;
 
@@ -135,7 +156,7 @@ public:
 
 		this->events.push_back(nextEvent);
 		this->events.push_back(departureEvent);
-		
+
 		return std::make_tuple(nextEvent, departureEvent);
 	}
 
